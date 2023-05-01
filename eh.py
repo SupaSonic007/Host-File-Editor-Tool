@@ -1,13 +1,18 @@
 from hostFileEditor import Hosts
+from hostFileEditorCustom import CustomHosts
+import platform
 
 
-host = Hosts()
+if platform.node not in ['Darwin', 'Linux', 'Windows']:
+    host = CustomHosts()
+else: host = Hosts()
+    
 
 print("Disclaimer: DO NOT USE THIS MALICIOUSLY\nThis was created as a tool, not for malicious intent.")
 
 print("Which mode would you like?")
 print("1. Auto fill-in IP from URL")
-print("2. Manually ser URLs ")
+print("2. Manually set URLs ")
 mode = input("> ")
 while not mode.strip() in ['1','2']:
     print("1. Auto fill-in IP from URL")

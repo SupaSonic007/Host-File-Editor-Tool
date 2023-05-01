@@ -18,7 +18,7 @@ class Hosts():
             "Darwin": "/etc/hosts"  # ? Unsure if MacOS is '/etc/hosts' or '/private/etc/hosts'
         }
 
-        self.location = location if location != None else self.locations[self.os]
+        self.location = location or self.locations[self.os]
         self.data = self.read_data()
         self.set_host('cloudflare-dns.com', '104.16.248.249')
 
@@ -80,17 +80,23 @@ ff02::2         ip6-allrouters
         """
         Add new URL
         """
-        domain = self.get_domain(url)
+        domain = get_domain(url)
 
         try:
             if ip:
                 self.data[domain] = ip
             else:
-                self.data[domain] = self.get_ip(self.get_domain(url))
+                self.data[domain] = get_ip(self.get_domain(url))
 
             self.save()
         except Exception as e:
             print(e)
+
+    def add(self, url: str, ip: str = None):
+        """
+        Add a new URL
+        """
+        self.set_host(url, ip)
 
     def save(self):
         """
@@ -140,55 +146,6 @@ ff02::2         ip6-allrouters
         else:
             raise ValueError("Less than 2 Keys - Something went wrong?")
 
-    def get_ip(self, domain: str) -> str:
-        """
-        Get IP from domain"""
-
-        response = json.loads(
-            requests.post(
-                f"https://cloudflare-dns.com/dns-query?name={domain}", headers={"Content-Type": "application/dns-json"}
-            ).text
-        )
-        if response['Status'] != 0:
-            match response['Status']:
-                case 1:
-                    raise Exception("Format Error")
-                case 2:
-                    raise Exception("Server Failure")
-                case 3:
-                    raise Exception("Non-Existent Domain")
-                case 5:
-                    raise Exception("Query Refused")
-                case _:
-                    raise Exception(
-                        f"Error raised: Status {response['Status']}, see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-6 for more info")
-        ip = response['Answer'][0]['data']
-        print(f"{domain}: {ip}\nAdded!")
-        if ':' in ip or '.' in ip:
-            return ip
-        else:
-            raise Exception("Could not find IP")
-
-    def get_domain(self, url: str) -> str:
-        """
-        Get domain from URL
-
-        (https://google.com -> google.com)
-        """
-        domain_regex = re.compile(
-            r"^\s*(?:https?:\/\/)?(?:[^@\/\n]+@)?(?P<domain>[^:\/?\\\s]+\.[^:\/?\\\s]+)")
-        matches = domain_regex.search(url)
-        if matches == None:
-            return None
-        domain = matches.group("domain")
-        return domain
-
-    def add(self, url: str, ip: str = None):
-        """
-        Add a new URL
-        """
-        self.set_host(url, ip)
-
     def reset(self):
         """
         Reset host file
@@ -208,3 +165,52 @@ ff02::2         ip6-allrouters
         with open(self.location, 'w') as f:
             f.write(default_host)
         return
+
+def get_ip(domain: str) -> str:
+    """
+    Get IP from domain"""
+
+    response = json.loads(
+        requests.post(
+            f"https://cloudflare-dns.com/dns-query?name={domain}", headers={"Content-Type": "application/dns-json"}
+        ).text
+    )
+    match response['Status']:
+        case 0:
+            pass
+        case 1:
+            raise Exception("Format Error")
+        case 2:
+            raise Exception("Server Failure")
+        case 3:
+            raise Exception("Non-Existent Domain")
+        case 5:
+            raise Exception("Query Refused")
+        case _:
+            raise Exception(
+                f"Error raised: Status {response['Status']}, see https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-6 for more info")
+
+    for i in response['Answer']:
+        if i['type'] == 1:
+            ip = i['data']
+            print(f"{domain}: {ip}\nAdded!")
+            break
+
+    if ':' in ip or '.' in ip:
+        return ip
+    else:
+        raise Exception("Could not find IP")
+
+def get_domain(url: str) -> str:
+    """
+    Get domain from URL
+
+    (https://google.com -> google.com)
+    """
+    domain_regex = re.compile(
+        r"^\s*(?:https?:\/\/)?(?:[^@\/\n]+@)?(?P<domain>[^:\/?\\\s]+\.[^:\/?\\\s]+)")
+    matches = domain_regex.search(url)
+    if matches == None:
+        return None
+    domain = matches.group("domain")
+    return domain
